@@ -46,7 +46,7 @@ class ProductScraper:
             await self.playwright.stop()
     
     async def scrape_flipkart(self, search_term: str, budget: float) -> List[Dict]:
-        """Scrape Flipkart products with better targeting"""
+        """Scrape Flipkart products with improved URL extraction"""
         page = await self.context.new_page()
         
         try:
@@ -107,7 +107,7 @@ class ProductScraper:
             await page.close()
     
     async def extract_flipkart_product_info(self, card):
-        """Extract product information from Flipkart product card with URL"""
+        """Extract product information from Flipkart product card with improved URL extraction"""
         product_info = {
             'title': None,
             'rating': None,
@@ -120,79 +120,120 @@ class ProductScraper:
         }
         
         try:
-            # Extract URL
+            # Improved URL extraction for Flipkart
             link_selectors = [
                 "a[href*='/p/']",
                 "a[title]",
+                "a[href]",
                 "._1fQZEK",
-                ".s1Q9rs"
+                ".s1Q9rs",
+                "._4rR01T",
+                "._2WkVRV"
             ]
             
             for selector in link_selectors:
                 try:
-                    link_element = card.locator(selector).first
-                    if await link_element.count() > 0:
-                        relative_url = await link_element.get_attribute('href')
-                        if relative_url:
-                            if relative_url.startswith('/'):
-                                product_info['url'] = f"https://www.flipkart.com{relative_url}"
-                            else:
-                                product_info['url'] = relative_url
-                            break
+                    link_elements = card.locator(selector)
+                    count = await link_elements.count()
+                    
+                    for i in range(count):
+                        try:
+                            link_element = link_elements.nth(i)
+                            relative_url = await link_element.get_attribute('href')
+                            
+                            if relative_url and ('/p/' in relative_url or '/dp/' in relative_url):
+                                if relative_url.startswith('/'):
+                                    product_info['url'] = f"https://www.flipkart.com{relative_url}"
+                                elif relative_url.startswith('http'):
+                                    product_info['url'] = relative_url
+                                else:
+                                    product_info['url'] = f"https://www.flipkart.com/{relative_url}"
+                                break
+                        except Exception:
+                            continue
+                    
+                    if product_info['url']:
+                        break
                 except Exception:
                     continue
             
-            # Extract title
+            # Extract title with improved selectors
             title_selectors = [
                 "._4rR01T",
                 ".s1Q9rs",
-                "._2WkVRV",
+                "._2WkVRV", 
                 ".IRpwTa",
                 "a[title]",
-                "._1fQZEK"
+                "._1fQZEK",
+                "a span",
+                "div[title]"
             ]
             
             for selector in title_selectors:
                 try:
-                    title_element = card.locator(selector).first
-                    if await title_element.count() > 0:
-                        title_text = await title_element.inner_text()
-                        if title_text:
-                            title_text = title_text.strip()
-                        if not title_text:
-                            title_text = await title_element.get_attribute('title')
-                        if title_text and len(title_text) > 10:
-                            product_info['title'] = title_text
-                            break
+                    title_elements = card.locator(selector)
+                    count = await title_elements.count()
+                    
+                    for i in range(min(count, 3)):
+                        try:
+                            title_element = title_elements.nth(i)
+                            title_text = await title_element.inner_text()
+                            
+                            if not title_text:
+                                title_text = await title_element.get_attribute('title')
+                            
+                            if title_text:
+                                title_text = title_text.strip()
+                                if len(title_text) > 10:
+                                    product_info['title'] = title_text
+                                    break
+                        except Exception:
+                            continue
+                    
+                    if product_info['title']:
+                        break
                 except Exception:
                     continue
             
-            # Extract price
+            # Extract price with improved logic
             price_selectors = [
                 "._30jeq3",
                 "._1_WHN1",
                 "._3tbHP2",
                 "._1vC4OE",
-                "._30jeq3._1_WHN1"
+                "._30jeq3._1_WHN1",
+                ".CEmiEU",
+                "._1_WHN1._30jeq3"
             ]
             
             for selector in price_selectors:
                 try:
-                    price_element = card.locator(selector).first
-                    if await price_element.count() > 0:
-                        price_text = await price_element.inner_text()
-                        if price_text:
-                            price_text = price_text.strip()
-                            price_match = re.search(r'₹?([\d,]+\.?\d*)', price_text)
-                            if price_match:
-                                price_str = price_match.group(1).replace(',', '')
-                                try:
-                                    price_value = float(price_str)
-                                    if price_value > 100:  # Reasonable minimum
-                                        product_info['price'] = price_value
-                                        break
-                                except ValueError:
-                                    continue
+                    price_elements = card.locator(selector)
+                    count = await price_elements.count()
+                    
+                    for i in range(count):
+                        try:
+                            price_element = price_elements.nth(i)
+                            price_text = await price_element.inner_text()
+                            
+                            if price_text:
+                                price_text = price_text.strip()
+                                # Remove currency symbols and extract numbers
+                                price_match = re.search(r'₹?(\d+(?:,\d+)*(?:\.\d+)?)', price_text)
+                                if price_match:
+                                    price_str = price_match.group(1).replace(',', '')
+                                    try:
+                                        price_value = float(price_str)
+                                        if price_value > 100:  # Reasonable minimum
+                                            product_info['price'] = price_value
+                                            break
+                                    except ValueError:
+                                        continue
+                        except Exception:
+                            continue
+                    
+                    if product_info['price']:
+                        break
                 except Exception:
                     continue
             
@@ -201,7 +242,8 @@ class ProductScraper:
                 "._3LWZlK",
                 "._3LWZlK div",
                 "._3LWZlK span",
-                "[class*='rating']"
+                "[class*='rating']",
+                "._13vcmD"
             ]
             
             for selector in rating_selectors:
@@ -224,6 +266,10 @@ class ProductScraper:
             if product_info['rating'] is None:
                 product_info['rating'] = "N/A"
             
+            # Debug logging
+            if product_info['title'] and product_info['price']:
+                print(f"Flipkart Product: {product_info['title'][:50]}... | Price: ₹{product_info['price']} | URL: {product_info['url']}")
+            
             return product_info if product_info['title'] and product_info['price'] else None
             
         except Exception as e:
@@ -231,7 +277,7 @@ class ProductScraper:
             return None
     
     async def scrape_amazon(self, product_name: str, budget: float) -> List[Dict[str, Any]]:
-        """Scrape products from Amazon"""
+        """Scrape products from Amazon with improved URL extraction"""
         page = await self.context.new_page()
         
         try:
@@ -272,7 +318,7 @@ class ProductScraper:
             await page.close()
     
     async def extract_amazon_product_info(self, card):
-        """Extract product information from Amazon product card with URL"""
+        """Extract product information from Amazon product card with improved URL extraction"""
         product_info = {
             'title': None,
             'rating': None,
@@ -285,12 +331,41 @@ class ProductScraper:
         }
         
         try:
-            # Extract URL first
-            link_element = card.locator("h2 a").first
-            if await link_element.count() > 0:
-                relative_url = await link_element.get_attribute('href')
-                if relative_url:
-                    product_info['url'] = f"https://www.amazon.in{relative_url}"
+            # Improved URL extraction for Amazon
+            link_selectors = [
+                "h2 a[href]",
+                "a[href*='/dp/']",
+                "a[href*='/gp/product/']",
+                ".a-link-normal[href]",
+                "a[data-component-type='s-product-image']",
+                ".s-image[href]"
+            ]
+            
+            for selector in link_selectors:
+                try:
+                    link_elements = card.locator(selector)
+                    count = await link_elements.count()
+                    
+                    for i in range(count):
+                        try:
+                            link_element = link_elements.nth(i)
+                            relative_url = await link_element.get_attribute('href')
+                            
+                            if relative_url and ('/dp/' in relative_url or '/gp/product/' in relative_url):
+                                if relative_url.startswith('/'):
+                                    product_info['url'] = f"https://www.amazon.in{relative_url}"
+                                elif relative_url.startswith('http'):
+                                    product_info['url'] = relative_url
+                                else:
+                                    product_info['url'] = f"https://www.amazon.in/{relative_url}"
+                                break
+                        except Exception:
+                            continue
+                    
+                    if product_info['url']:
+                        break
+                except Exception:
+                    continue
             
             # Extract title
             title_selectors = [
@@ -299,23 +374,31 @@ class ProductScraper:
                 "h2.a-size-mini a span",
                 "h2.a-size-mini span",
                 "h2 a span",
-                "h2 span"
+                "h2 span",
+                ".a-size-base-plus",
+                ".a-size-medium"
             ]
             
             for selector in title_selectors:
                 try:
                     title_elements = card.locator(selector)
                     element_count = await title_elements.count()
-                    if element_count > 0:
-                        for i in range(min(element_count, 3)):
-                            title_text = await title_elements.nth(i).inner_text()
+                    
+                    for i in range(min(element_count, 3)):
+                        try:
+                            title_element = title_elements.nth(i)
+                            title_text = await title_element.inner_text()
+                            
                             if title_text:
                                 title_text = title_text.strip()
-                                if title_text and len(title_text) > 10:
+                                if len(title_text) > 10:
                                     product_info['title'] = title_text
                                     break
-                        if product_info['title']:
-                            break
+                        except Exception:
+                            continue
+                    
+                    if product_info['title']:
+                        break
                 except Exception:
                     continue
             
@@ -323,7 +406,8 @@ class ProductScraper:
             rating_selectors = [
                 "span[aria-label*='out of 5 stars']",
                 "span.a-icon-alt",
-                "div[data-cy='reviews-block'] span.a-size-small.a-color-base"
+                "div[data-cy='reviews-block'] span.a-size-small.a-color-base",
+                ".a-icon-alt"
             ]
             
             for selector in rating_selectors:
@@ -331,17 +415,17 @@ class ProductScraper:
                     rating_element = card.locator(selector).first
                     if await rating_element.count() > 0:
                         rating_text = await rating_element.inner_text()
-                        if rating_text:
-                            rating_text = rating_text.strip()
                         if not rating_text:
                             rating_text = await rating_element.get_attribute('aria-label') or ""
                         
-                        rating_match = re.search(r'(\d+\.?\d*)', rating_text)
-                        if rating_match:
-                            rating_value = float(rating_match.group(1))
-                            if 0 <= rating_value <= 5:
-                                product_info['rating'] = rating_value
-                                break
+                        if rating_text:
+                            rating_text = rating_text.strip()
+                            rating_match = re.search(r'(\d+\.?\d*)', rating_text)
+                            if rating_match:
+                                rating_value = float(rating_match.group(1))
+                                if 0 <= rating_value <= 5:
+                                    product_info['rating'] = rating_value
+                                    break
                 except Exception:
                     continue
             
@@ -349,19 +433,25 @@ class ProductScraper:
             price_selectors = [
                 "span.a-price span.a-offscreen",
                 "span.a-price-whole",
-                ".a-price .a-offscreen"
+                ".a-price .a-offscreen",
+                ".a-price-range .a-price .a-offscreen",
+                ".a-price"
             ]
             
             for selector in price_selectors:
                 try:
                     price_elements = card.locator(selector)
                     element_count = await price_elements.count()
-                    if element_count > 0:
-                        for i in range(element_count):
-                            price_text = await price_elements.nth(i).inner_text()
+                    
+                    for i in range(element_count):
+                        try:
+                            price_element = price_elements.nth(i)
+                            price_text = await price_element.inner_text()
+                            
                             if price_text:
                                 price_text = price_text.strip()
-                                price_match = re.search(r'₹?([\d,]+\.?\d*)', price_text)
+                                # Remove currency symbols and extract numbers
+                                price_match = re.search(r'₹?(\d+(?:,\d+)*(?:\.\d+)?)', price_text)
                                 if price_match:
                                     price_str = price_match.group(1).replace(',', '')
                                     try:
@@ -371,6 +461,9 @@ class ProductScraper:
                                             break
                                     except ValueError:
                                         continue
+                        except Exception:
+                            continue
+                    
                     if product_info['price']:
                         break
                 except Exception:
@@ -555,6 +648,7 @@ class ShoppingAgent:
         ]
         
         If there are fewer than 3 products, return all available products.
+        Make sure to preserve the original URLs from the input data.
         """
         
         try:
@@ -623,7 +717,11 @@ class ShoppingAgent:
             if 'why_recommended' in product:
                 output += f"   💡 Why recommended: {product['why_recommended']}\n"
             
-            output += f"   🔗 Link: {product['url']}\n"
+            if product.get('url') and product['url'] != 'None':
+                output += f"   🔗 Link: {product['url']}\n"
+            else:
+                output += f"   🔗 Link: URL not available\n"
+            
             output += "-" * 50 + "\n"
         
         return output
